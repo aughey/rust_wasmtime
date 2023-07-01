@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 wasmtime = "10.0.1"
+wasmtime-wasi = "10.0.1"

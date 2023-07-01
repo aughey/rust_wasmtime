@@ -1,5 +1,6 @@
 use std::error::Error;
 use wasmtime::*;
+use wasmtime_wasi::sync::WasiCtxBuilder;
 
 fn main() -> Result<(), Box<dyn Error>> {
     // An engine stores and configures global compilation settings like
@@ -9,40 +10,41 @@ fn main() -> Result<(), Box<dyn Error>> {
     // We start off by creating a `Module` which represents a compiled form
     // of our input wasm module. In this case it'll be JIT-compiled after
     // we parse the text format.
-    println!("Loading wasm file");
-    let module = Module::from_file(&engine, "../wasmlib/target/wasm32-wasi/debug/wasmlib.wasm ")?;
+    const WASM_FILE: &str = "../target/wasm32-wasi/debug/wasmlib.wasm";
+    println!("Loading wasm file: {WASM_FILE}");
+    let module = Module::from_file(&engine, WASM_FILE)?;
     println!("Loaded");
+
+    for import in module.imports() {
+        println!("Module Import: {:?}", import);
+    }
+
+
+    let wasi = WasiCtxBuilder::new()
+        .inherit_stdio()
+        .inherit_args()
+        .unwrap()
+        .build();
+
+        let mut linker = Linker::new(&engine);
+
+        wasmtime_wasi::add_to_linker(&mut linker, |s| s).unwrap();
 
     // A `Store` is what will own instances, functions, globals, etc. All wasm
     // items are stored within a `Store`, and it's what we'll always be using to
     // interact with the wasm world. Custom data can be stored in stores but for
     // now we just use `()`.
     println!("Creating store");
-    let mut store = Store::new(&engine, ());
+    let mut store = Store::new(&engine, wasi);
     println!("Created store");
 
-    // With a compiled `Module` we can then instantiate it, creating
-    // an `Instance` which we can actually poke at functions on.
     println!("Creating instance");
-    let instance = Instance::new(&mut store, &module, &[])?;
+    let link = linker.instantiate(&mut store, &module)?;
     println!("Created instance");
 
-    // The `Instance` gives us access to various exported functions and items,
-    // which we access here to pull out our `answer` exported function and
-    // run it.
-    println!("Getting function");
-    let answer = instance.get_func(&mut store, "answer")
-        .expect("`answer` was not an exported function");
-    print!("Got function: ");
+    let four_fn = link.get_typed_func::<(), i32>(&mut store, "return_four")?;
+    println!("{}", four_fn.call(&mut store, ()).unwrap());
 
-    // There's a few ways we can call the `answer` `Func` value. The easiest
-    // is to statically assert its signature with `typed` (in this case
-    // asserting it takes no arguments and returns one i32) and then call it.
-    let answer = answer.typed::<(), i32>(&store)?;
-
-    // And finally we can call our function! Note that the error propagation
-    // with `?` is done to handle the case where the wasm function traps.
-    let result = answer.call(&mut store, ())?;
-    println!("Answer: {:?}", result);
+    // The `Instance` gives us access to various exported fun
     Ok(())
 }
