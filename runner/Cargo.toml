@@ -6,5 +6,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+tempfile = "3.6.0"
 wasmtime = "10.0.1"
 wasmtime-wasi = "10.0.1"
